@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulateur – Protocole de dilution</title>
+<style>
+  :root{color-scheme:light;
+    --bg:#f3f5f8; --card:#fff; --ink:#1d2433; --muted:#5b6475; --line:#dde2ea;
+    --accent:#1f6feb; --red:#d62828; --ok:#1a7f37; --warn:#9a6700;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);}
+  header{padding:18px 24px 6px}
+  header h1{margin:0;font-size:1.6rem;text-align:center}
+  header p{margin:4px 0 0;color:var(--muted);font-size:.95rem}
+  main{display:grid;grid-template-columns:minmax(0,1fr);max-width:1150px;margin:0 auto;gap:18px;padding:12px 24px 24px;align-items:start}
+  @media (max-width:950px){main{grid-template-columns:1fr}}
+  .settings{border-bottom:1px solid var(--line);padding:2px 6px 14px;margin-bottom:12px}
+  .settings h2{margin:0 0 4px;font-size:1.02rem}
+  .settings .grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(max-content,1fr) minmax(max-content,1fr);gap:16px;align-items:end}
+  .settings label{white-space:nowrap}
+  @media (max-width:700px){.settings .grid{grid-template-columns:1fr}}
+  .settings .legend{margin-top:10px}
+  .stepbox{display:flex;gap:16px;align-items:center;justify-content:space-between;background:#f7f9fc;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:6px;min-height:92px}
+  .stepbox.idle{min-height:0;justify-content:flex-start}
+  .stepbox.idle .buttons{flex-direction:row}
+  .nowrap{white-space:nowrap}
+  .steptext{flex:1;min-width:0}
+  .stepbox h2{margin:0 0 4px;font-size:1.02rem}
+  .stepbox .buttons{margin-top:0;flex:none;flex-direction:column;align-items:stretch}
+  @media (max-width:700px){.stepbox{flex-direction:column;align-items:stretch}.stepbox .buttons{flex-direction:row}}
+  .stage{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .steps{display:flex;gap:6px;list-style:none;margin:0 0 8px;padding:0;flex-wrap:wrap}
+  .steps li{flex:1 1 0;min-width:110px;font-size:.8rem;padding:7px 8px;border-radius:8px;background:#eef1f5;color:var(--muted);text-align:center;border:1px solid transparent}
+  .steps li.done{background:#e6f4ea;color:var(--ok)}
+  .steps li.active{background:#e7efff;color:var(--accent);border-color:var(--accent);font-weight:600}
+  svg{width:100%;height:auto;max-height:85vh;display:block}
+  .panel{display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .card h2{margin:0 0 10px;font-size:1.02rem}
+  label{display:block;font-size:.88rem;margin:10px 0 4px;color:var(--muted)}
+  .row{display:flex;align-items:center;gap:10px}
+  input[type=range]{flex:1}
+  output{font-weight:600;min-width:92px;text-align:right;font-variant-numeric:tabular-nums}
+  select{width:100%;padding:7px;border-radius:8px;border:1px solid var(--line);font-size:.95rem;background:#fff;color:#1d2433;color-scheme:light}
+  select option{color:#1d2433;background:#fff}
+  input:disabled{opacity:.55}
+  select:disabled{color:var(--ink);background:#f3f5f8;opacity:1}
+  .legend{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.88rem;color:var(--muted)}
+  .dot{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff7b7b,#c1121f);border:1px solid #7a0d0d;flex:none}
+  .note{font-size:.82rem;color:var(--muted);margin-top:8px}
+  .warn{font-size:.84rem;color:var(--warn);background:#fff8e1;border-radius:8px;padding:7px 9px;margin-top:10px}
+  .warn:empty{display:none}
+  #stepText{font-size:.92rem;line-height:1.45;margin:0}
+  .eqbox{display:grid;grid-template-columns:auto auto auto;column-gap:10px;row-gap:6px;width:max-content;margin:10px auto 2px;padding:10px 22px;border:2px solid var(--accent);border-radius:10px;background:#fff;font-size:1.1rem}
+  .eqbox .l{text-align:right}.eqbox .r{text-align:left}.eqbox .e{text-align:center}
+  .buttons{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  button{font:inherit;font-size:.92rem;padding:9px 14px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+  button.secondary{background:#fff;color:var(--accent)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:500}
+  td.balls{font-weight:700;color:var(--red)}
+  .check{margin-top:10px;font-size:.88rem;font-weight:600}
+  .check.ok{color:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>La dilution (version quantité de matière)</h1>
+</header>
+<main>
+  <section class="stage">
+    <div class="settings">
+    <h2>Réglages</h2>
+    <div class="grid">
+    <div><label for="c0">Concentration de la solution mère C<sub>mère</sub></label>
+    <div class="row"><input id="c0" type="range" min="0.01" max="2" step="0.01" value="0.2"><output id="c0Out"></output></div></div>
+    <div><label for="vp">Volume de la pipette jaugée V<sub>mère</sub></label>
+    <select id="vp">
+      <option value="5">5,0 mL</option><option value="10">10,0 mL</option>
+      <option value="20" selected>20,0 mL</option><option value="25">25,0 mL</option>
+      <option value="50">50,0 mL</option>
+    </select></div>
+    <div><label for="vf">Volume de la fiole jaugée V<sub>fille</sub></label>
+    <select id="vf">
+      <option value="25">25,0 mL</option><option value="50">50,0 mL</option><option value="100" selected>100,0 mL</option>
+      <option value="200">200,0 mL</option><option value="250">250,0 mL</option>
+      <option value="500">500,0 mL</option>
+    </select></div>
+    </div>
+    <div class="legend"><span class="dot"></span>1 boule = 0,001 mol de soluté</div>
+    <div class="warn" id="warn"></div>
+    <div class="note" id="lockNote"></div>
+    </div>
+    <ol class="steps" id="steps">
+      <li>1 · Prélèvement</li>
+      <li>2 · Transfert</li>
+      <li>3 · Dilution</li>
+      <li>4 · Bilan</li>
+    </ol>
+    <div class="stepbox">
+      <div class="steptext">
+        <h2 id="stepTitle"></h2>
+        <div id="stepText"></div>
+      </div>
+      <div class="buttons">
+        <button id="nextBtn"></button>
+        <button id="replayBtn" class="secondary"></button>
+        <button id="resetBtn" class="secondary">Recommencer</button>
+      </div>
+    </div>
+    <svg id="scene" viewBox="0 -128 1000 768" role="img" aria-label="Bécher, pipette jaugée et fiole jaugée">
+      <defs>
+        <radialGradient id="ballGrad" cx="35%" cy="35%" r="70%">
+          <stop offset="0" stop-color="#ff8a8a"/><stop offset="1" stop-color="#c1121f"/>
+        </radialGradient>
+        <linearGradient id="glassGrad" x1="0" x2="1">
+          <stop offset="0" stop-color="#ffffff" stop-opacity=".55"/>
+          <stop offset=".5" stop-color="#e8f0f8" stop-opacity=".25"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity=".5"/>
+        </linearGradient>
+        <clipPath id="clipPip"><path id="clipPipPath"/></clipPath>
+        <clipPath id="clipFlask"><path id="clipFlaskPath"/></clipPath>
+        <clipPath id="clipBeaker"><rect id="clipBeakerRect"/></clipPath>
+      </defs>
+
+      <!-- paillasse -->
+      <rect x="0" y="560" width="1000" height="6" fill="#c9cfd8"/>
+
+      <!-- BÉCHER -->
+      <g id="beakerG">
+        <rect id="beakerBack" fill="url(#glassGrad)"/>
+        <rect id="beakerLiquid" fill="#8fc3ea" fill-opacity=".55" clip-path="url(#clipBeaker)"/>
+        <g id="beakerBalls"></g>
+        <path id="beakerOutline" fill="none" stroke="#3b4658" stroke-width="3" stroke-linejoin="round"/>
+        <g id="beakerGrad" font-size="10" fill="#3b4658"></g>
+        <text x="185" y="592" text-anchor="middle" font-size="20" font-weight="600" fill="#1d2433">Solution mère</text>
+        <text id="beakerCap" x="185" y="622" text-anchor="middle" font-size="23" fill="#1d2433"></text>
+      </g>
+
+      <!-- FIOLE -->
+      <g id="flaskG">
+        <path id="flaskBack" fill="url(#glassGrad)"/>
+        <path id="flaskLiquid" fill="#8fc3ea" fill-opacity=".55" clip-path="url(#clipFlask)"/>
+        <path id="flaskMenisc" fill="none" stroke="#2f6ea3" stroke-width="2" clip-path="url(#clipFlask)"/>
+        <g id="flaskBalls"></g>
+        <path id="flaskOutline" fill="none" stroke="#3b4658" stroke-width="3" stroke-linejoin="round"/>
+        <line id="flaskGauge" stroke="#1d2433" stroke-width="2"/>
+        <text id="flaskGaugeTxt" font-size="15" fill="#3b4658" text-anchor="end">trait de jauge</text>
+        <text id="flaskGaugeVol" font-size="15" fill="#3b4658" text-anchor="end"></text>
+        <rect id="stopper" fill="#4a5568" rx="3" opacity="0"/>
+      </g>
+      <text id="flaskTitle" x="660" y="592" text-anchor="middle" font-size="20" font-weight="600" fill="#1d2433"></text>
+      <text id="flaskSol" x="660" y="248" text-anchor="middle" font-size="22" font-weight="700" fill="#d62828" style="display:none">Solution fille</text>
+      <g id="flaskInfo" font-size="21" fill="#1d2433" stroke="#fff" stroke-width="5" paint-order="stroke">
+        <text id="fInfoV"></text><text id="fInfoC"></text><text id="fInfoN"></text>
+      </g>
+      
+      <!-- ÉQUATION n = C × V (étape 3) -->
+      <g id="eqn" font-size="21" fill="#1d2433" text-anchor="middle" style="display:none">
+        <text id="eq1_0"></text><text id="eq1_1"></text><text id="eq1_2"></text><text id="eq1_3"></text><text id="eq1_4"></text>
+        <text id="eq2_0"></text><text id="eq2_1"></text><text id="eq2_2"></text><text id="eq2_3"></text><text id="eq2_4"></text>
+      </g>
+
+      <!-- PISSETTE -->
+      <g id="washBottle" opacity="0">
+        <path id="stream" fill="none" stroke="#5aa6e0" stroke-linecap="round"/>
+        <g id="pissetteBody">
+        <g transform="rotate(-18 842 225)">
+          <rect x="820" y="185" width="46" height="82" rx="11" fill="#eef6fc" stroke="#3b4658" stroke-width="2.5"/>
+          <rect x="820" y="215" width="46" height="52" rx="10" fill="#8fc3ea" fill-opacity=".55"/>
+          <rect x="834" y="175" width="18" height="12" rx="2" fill="#3b4658"/>
+          <path d="M843 175 L843 158 Q840 146 822 150 L795 160" fill="none" stroke="#3b4658" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <text x="850" y="292" font-size="12" fill="#5b6475" text-anchor="middle">eau distillée</text>
+        </g>
+      </g>
+
+      <!-- PIPETTE -->
+      <g id="pipetteG">
+        <path id="pipBack" fill="url(#glassGrad)"/>
+        <rect id="pipLiquid" x="-60" width="120" fill="#8fc3ea" fill-opacity=".7" clip-path="url(#clipPip)"/>
+        <g id="pipBalls"></g>
+        <path id="pipOutline" fill="none" stroke="#3b4658" stroke-width="2.2" stroke-linejoin="round"/>
+        <line id="pipGaugeLine" x1="-10" x2="10" stroke="#1d2433" stroke-width="2"/>
+        <rect id="pipCap" x="-5" width="10" height="14" rx="2" fill="#7c5cbf"/>
+        <ellipse id="pipBulb" cx="0" rx="9" ry="10" fill="#9b7ddb" stroke="#5b3fa0" stroke-width="1.2"/>
+        <text id="pipLabel" x="38" y="-210" text-anchor="start" font-size="23" font-weight="600" fill="#1d2433" stroke="#fff" stroke-width="5" paint-order="stroke">Pipette jaugée</text>
+        <text id="pipLabel2" x="38" y="-184" text-anchor="start" font-size="21" fill="#1d2433" stroke="#fff" stroke-width="5" paint-order="stroke"></text>
+        <text id="pipLabel3" x="38" y="-156" text-anchor="start" font-size="21" fill="#1d2433" stroke="#fff" stroke-width="5" paint-order="stroke"></text>
+        <text id="pipLabel4" x="38" y="-128" text-anchor="start" font-size="21" fill="#1d2433" stroke="#fff" stroke-width="5" paint-order="stroke"></text>
+      </g>
+
+      <g id="transit"></g>
+    </svg>
+  </section>
+
+</main>
+
+<script>
+(() => {
+const NS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+const BALL_MOL = 0.001, V0 = 100;
+let RB = 4.5; // rayon des boules, réduit quand la pipette doit en contenir beaucoup
+const ABORT = new Error("abort");
+
+// ---------- géométrie ----------
+// Échelle commune des volumes pour toute la verrerie (pipette, bécher, fiole) :
+// chaque récipient est dessiné comme un objet 3D (cylindre ou sphère) avec le même nombre de « px³ » par mL.
+const SCALE = 1.05;
+const PX3_PER_ML = Math.PI * 28 * 28 * 66 / 20 * SCALE ** 3; // pipette de 20 mL : rayon 28·SCALE, hauteur 66·SCALE
+const BEAKER_CAP = 125; // volume total du bécher (graduations jusqu'à 100 mL)
+const BCX = 185, BBOT = 556;
+const BR = Math.cbrt(BEAKER_CAP * PX3_PER_ML / (2.4 * Math.PI)); // bécher cylindrique, hauteur = 2,4 × rayon
+const BH = 2.4 * BR;
+const BX0 = BCX - BR, BX1 = BCX + BR, BTOP = BBOT - BH;
+const beakerLevel = V => BBOT - V / BEAKER_CAP * BH;
+const PIP_REST = 285, PIP_X0 = 185;
+let PIP_LIFT = 272, PIP_IN_FLASK = 372; // dépendent de la hauteur du col de la fiole
+let PIP_GAUGE = -298;
+let PG = {}; // géométrie de la pipette (dépend de son volume)
+const FCX = 660, FBOT = 552;
+let FTOP = 282, FGAUGE = 322, EQ_Y2 = 128; // dépendent de la taille de la fiole
+const flaskRadius = V => Math.cbrt(3 * V * PX3_PER_ML / (4 * Math.PI));
+function buildPipette() {
+  // Même échelle visuelle que le bécher et la fiole : la surface dessinée de la pipette
+  // (renflement + ses deux raccords) correspond au même nombre de px² par mL que le bécher.
+  const A = 2 * BR * BH / BEAKER_CAP;           // px² par mL du bécher dessiné
+  // W·(1,9·W) pour le renflement + ≈ W·27 pour les deux raccords = V·A
+  const W = (-27 + Math.sqrt(27 * 27 + 4 * 1.9 * S.Vp * A)) / (2 * 1.9);
+  const hw = W / 2, H = 1.9 * W;
+  const yb0 = -157, yb1 = yb0 - H, yt = yb1 - 27, ytop = yt - 82;
+  PG = {hw, H, yb0, yb1, yt, ytop};
+  PIP_GAUGE = yt - 48;
+  const d = `M -1.2 0 L -3.5 -130 C -3.5 -144 ${-hw} -142 ${-hw} ${yb0} L ${-hw} ${yb1} C ${-hw} ${yb1 - 15} -3.5 ${yt + 14} -3.5 ${yt} L -3.5 ${ytop} L 3.5 ${ytop} L 3.5 ${yt} C 3.5 ${yt + 14} ${hw} ${yb1 - 15} ${hw} ${yb1} L ${hw} ${yb0} C ${hw} -142 3.5 -144 3.5 -130 L 1.2 0 Z`;
+  ["pipBack", "pipOutline", "clipPipPath"].forEach(id => $(id).setAttribute("d", d));
+  const g = $("pipGaugeLine"); g.setAttribute("y1", PIP_GAUGE); g.setAttribute("y2", PIP_GAUGE);
+  $("pipCap").setAttribute("y", ytop - 10);
+  $("pipBulb").setAttribute("cy", ytop - 18);
+  const yc = (yb0 + yb1) / 2;
+  [["pipLabel", -30], ["pipLabel2", 2], ["pipLabel3", 36], ["pipLabel4", 70]].forEach(([id, dy]) => {
+    $(id).setAttribute("x", hw + 12); $(id).setAttribute("y", yc + dy);
+  });
+}
+
+// ---------- état ----------
+const S = {
+  step: 0, busy: false, gen: 0,
+  C0: 1, Vp: 20, Vf: 100, N: 80, k: 0, kTh: 0,
+  pip: {x: PIP_X0, y: PIP_REST, level: 0},
+  beakerV: V0, flask: {level: FBOT + 6, rot: 0, V: 0},
+  wash: 0, streamW: 0, stopper: 0, drop: null
+};
+let balls = [];
+let fl = {};
+
+// ---------- utilitaires ----------
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const linear = t => t;
+const fr = (x, d) => x.toLocaleString("fr-FR", {minimumFractionDigits: d, maximumFractionDigits: d});
+const sig = x => x.toLocaleString("fr-FR", {maximumSignificantDigits: 3});
+const mol = x => fr(x, 3);
+
+function tween(ms, fn, ease = easeInOut) {
+  const g = S.gen;
+  return new Promise((res, rej) => {
+    const t0 = performance.now();
+    function f(now) {
+      if (g !== S.gen) return rej(ABORT);
+      const t = Math.min(1, (now - t0) / ms);
+      fn(ease(t));
+      t < 1 ? requestAnimationFrame(f) : res();
+    }
+    requestAnimationFrame(f);
+  });
+}
+function wait(ms) {
+  const g = S.gen;
+  return new Promise((res, rej) => setTimeout(() => g === S.gen ? res() : rej(ABORT), ms));
+}
+function pathPoint(pts, t) {
+  const segs = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    segs.push(l); total += l;
+  }
+  let d = t * total;
+  for (let i = 0; i < segs.length; i++) {
+    if (d <= segs[i] || i === segs.length - 1) {
+      const u = segs[i] ? Math.min(1, d / segs[i]) : 1;
+      return {x: lerp(pts[i].x, pts[i + 1].x, u), y: lerp(pts[i].y, pts[i + 1].y, u)};
+    }
+    d -= segs[i];
+  }
+  return pts[pts.length - 1];
+}
+function samplePoints(n, inside, box, minD, existing = []) {
+  const pts = [];
+  let tries = 0;
+  while (pts.length < n && tries < n * 600 + 200) {
+    tries++;
+    const x = box.x0 + Math.random() * (box.x1 - box.x0);
+    const y = box.y0 + Math.random() * (box.y1 - box.y0);
+    if (!inside(x, y)) continue;
+    const ok = p => (p.x - x) ** 2 + (p.y - y) ** 2 >= minD * minD;
+    if (!pts.every(ok) || !existing.every(ok)) continue;
+    pts.push({x, y});
+  }
+  return pts.length === n ? pts : null;
+}
+// Répartition homogène : algorithme du « meilleur candidat » (Mitchell),
+// chaque nouvelle boule est placée le plus loin possible des autres et des parois.
+function wallDist(inside, x, y) {
+  let m = 40;
+  for (let a = 0; a < 8; a++) {
+    const dx = Math.cos(a * Math.PI / 4), dy = Math.sin(a * Math.PI / 4);
+    for (let r = 2; r < m; r += 2) if (!inside(x + dx * r, y + dy * r)) { m = r; break; }
+  }
+  return m;
+}
+function sampleEven(n, inside, box, existing = []) {
+  const pts = [];
+  let minD = Infinity;
+  for (let i = 0; i < n; i++) {
+    let best = null, bestS = -1;
+    for (let c = 0, got = 0; c < 4000 && got < 90; c++) {
+      const x = box.x0 + Math.random() * (box.x1 - box.x0);
+      const y = box.y0 + Math.random() * (box.y1 - box.y0);
+      if (!inside(x, y)) continue;
+      got++;
+      let d = 1e9;
+      for (const p of pts) d = Math.min(d, Math.hypot(p.x - x, p.y - y));
+      for (const p of existing) d = Math.min(d, Math.hypot(p.x - x, p.y - y));
+      const sc = Math.min(d, 2 * wallDist(inside, x, y) + 4);
+      if (sc > bestS) { bestS = sc; best = {x, y, d}; }
+    }
+    if (!best) best = {x: (box.x0 + box.x1) / 2, y: box.y1, d: 0};
+    minD = Math.min(minD, best.d);
+    pts.push({x: best.x, y: best.y});
+  }
+  return {pts, minD};
+}
+// associe chaque boule à la cible la plus proche (mouvements courts)
+function assign(list, targets) {
+  const free = targets.slice();
+  return list.map(b => {
+    let bi = 0, bd = Infinity;
+    free.forEach((t, i) => { const d = (t.x - b.x) ** 2 + (t.y - b.y) ** 2; if (d < bd) { bd = d; bi = i; } });
+    return free.splice(bi, 1)[0];
+  });
+}
+function samplePointsSafe(n, inside, box, existing = []) {
+  for (const d of [10.5, 9.5, 8.5, 7]) {
+    const p = samplePoints(n, inside, box, d, existing);
+    if (p) return p;
+  }
+  return samplePoints(n, inside, box, 0) || Array.from({length: n}, () => ({x: (box.x0 + box.x1) / 2, y: box.y1}));
+}
+
+// ---------- bécher ----------
+const insideBeaker = lvl => (x, y) => x >= BX0 + RB + 4 && x <= BX1 - RB - 4 && y >= lvl + RB + 3 && y <= BBOT - RB - 2;
+const beakerBox = {x0: BX0, x1: BX1, y0: BTOP, y1: BBOT};
+function buildBeakerGrad() {
+  const set = (id, o) => Object.entries(o).forEach(([k, v]) => $(id).setAttribute(k, v));
+  set("beakerBack", {x: BX0, y: BTOP, width: 2 * BR, height: BH + 4});
+  set("clipBeakerRect", {x: BX0 + 2, y: BTOP - 10, width: 2 * BR - 4, height: BH + 12});
+  set("beakerLiquid", {x: BX0 + 2, width: 2 * BR - 4});
+  set("beakerOutline", {d: `M${BX0 - 7} ${BTOP - 5} Q${BX0} ${BTOP - 3} ${BX0} ${BTOP + 4} L${BX0} ${BBOT - 2} Q${BX0} ${BBOT + 4} ${BX0 + 6} ${BBOT + 4} L${BX1 - 6} ${BBOT + 4} Q${BX1} ${BBOT + 4} ${BX1} ${BBOT - 2} L${BX1} ${BTOP + 4} Q${BX1} ${BTOP - 3} ${BX1 + 7} ${BTOP - 5}`});
+  const g = $("beakerGrad");
+  g.innerHTML = "";
+  for (let v = 25; v <= 100; v += 25) {
+    const y = beakerLevel(v);
+    const l = document.createElementNS(NS, "line");
+    l.setAttribute("x1", BX1); l.setAttribute("x2", BX1 + 10);
+    l.setAttribute("y1", y); l.setAttribute("y2", y);
+    l.setAttribute("stroke", "#3b4658"); l.setAttribute("stroke-width", "1.2");
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", BX1 + 14); t.setAttribute("y", y + 3.5);
+    t.textContent = v;
+    g.append(l, t);
+  }
+  const t = document.createElementNS(NS, "text");
+  t.setAttribute("x", BX1 + 14); t.setAttribute("y", beakerLevel(100) - 16);
+  t.textContent = "mL";
+  g.append(t);
+}
+
+// ---------- fiole ----------
+function flaskHalf(y) {
+  if (y < FTOP || y > FBOT) return 0;
+  if (y <= fl.j) return fl.hn;
+  return Math.sqrt(Math.max(0, fl.r * fl.r - (y - fl.cy) ** 2));
+}
+function buildFlask() {
+  const r = flaskRadius(S.Vf);
+  const cy = FBOT - 0.85 * r;
+  const hn = Math.max(12, 0.21 * r);
+  const j = cy - Math.sqrt(r * r - hn * hn);
+  const bx = Math.sqrt(r * r - (FBOT - cy) ** 2);
+  // col proportionné à la fiole : le trait de jauge est placé dans le col
+  FTOP = 282; FGAUGE = 322; PIP_IN_FLASK = 372; PIP_LIFT = 272; EQ_Y2 = 128;
+  fl = {r, cy, hn, j, bx};
+  const dy = FTOP - 282;
+  $("pissetteBody").setAttribute("transform", `translate(${FCX - 760} ${dy})`);
+  $("flaskSol").setAttribute("y", FTOP - 34);
+  const body = `M${FCX - hn} ${FTOP} L${FCX - hn} ${j} A${r} ${r} 0 0 0 ${FCX - bx} ${FBOT} L${FCX + bx} ${FBOT} A${r} ${r} 0 0 0 ${FCX + hn} ${j} L${FCX + hn} ${FTOP}`;
+  $("flaskBack").setAttribute("d", body + " Z");
+  $("clipFlaskPath").setAttribute("d", body + " Z");
+  $("flaskOutline").setAttribute("d", `M${FCX - hn - 5} ${FTOP - 5} L${FCX - hn} ${FTOP} ` + body.slice(body.indexOf("L")) + ` L${FCX + hn + 5} ${FTOP - 5}`);
+  const gl = $("flaskGauge");
+  gl.setAttribute("x1", FCX - hn - 7); gl.setAttribute("x2", FCX + hn + 7);
+  gl.setAttribute("y1", FGAUGE); gl.setAttribute("y2", FGAUGE);
+  const gt = $("flaskGaugeTxt");
+  gt.setAttribute("x", FCX - hn - 11); gt.setAttribute("y", FGAUGE + 5);
+  const gv = $("flaskGaugeVol");
+  gv.setAttribute("x", FCX - hn - 11); gv.setAttribute("y", FGAUGE + 24); gv.textContent = `${fr(S.Vf, 1)} mL`;
+  const st = $("stopper");
+  st.setAttribute("x", FCX - hn - 3); st.setAttribute("y", FTOP - 16);
+  st.setAttribute("width", 2 * hn + 6); st.setAttribute("height", 22);
+  // table d'aire (volume) en fonction de la hauteur
+  fl.cum = {};
+  let a = 0;
+  for (let y = FBOT; y >= FTOP; y--) { fl.cum[y] = a; a += 2 * flaskHalf(y - 0.5); }
+}
+function flaskLevelForVolume(V) {
+  const target = V / S.Vf * fl.cum[FGAUGE];
+  for (let y = FBOT; y >= FTOP; y--) if (fl.cum[y] >= target) return y;
+  return FTOP;
+}
+const insideFlask = lvl => (x, y) => y >= lvl + 6 && y <= FBOT - 6 &&
+  Math.abs(x - FCX) <= Math.min(flaskHalf(y - 4), flaskHalf(y + 4)) - 6;
+const flaskBox = () => ({x0: FCX - fl.r, x1: FCX + fl.r, y0: FTOP, y1: FBOT});
+
+// ---------- pipette ----------
+function pipetteSlots(n) {
+  const m = RB + 1.5;
+  const inBulb = (x, y) => Math.abs(x) <= PG.hw - 1 - m && y >= PG.yb1 - 2 + m && y <= PG.yb0 + 2 - m;
+  return sampleEven(n, inBulb, {x0: -PG.hw, x1: PG.hw, y0: PG.yb1 - 2, y1: PG.yb0 + 2}).pts.sort((p, q) => q.y - p.y);
+}
+
+// ---------- boules ----------
+const layers = {beaker: "beakerBalls", pipette: "pipBalls", flask: "flaskBalls", transit: "transit"};
+function makeBall(x, y) {
+  const el = document.createElementNS(NS, "circle");
+  el.setAttribute("r", RB);
+  el.setAttribute("fill", "url(#ballGrad)");
+  el.setAttribute("stroke", "#7a0d0d");
+  el.setAttribute("stroke-width", RB > 3 ? ".8" : ".5");
+  $("beakerBalls").appendChild(el);
+  return {el, where: "beaker", x, y, moving: false,
+    f1: .7 + Math.random() * .6, f2: .7 + Math.random() * .6, p1: Math.random() * 6.3, p2: Math.random() * 6.3};
+}
+function placeIn(b, where, x, y) {
+  $(layers[where]).appendChild(b.el);
+  b.where = where; b.x = x; b.y = y; b.moving = false;
+}
+function absPos(b) {
+  if (b.where === "pipette") return {x: S.pip.x + b.x, y: S.pip.y + b.y};
+  return {x: b.x, y: b.y};
+}
+function toTransit(b) {
+  const p = absPos(b);
+  $(layers.transit).appendChild(b.el);
+  b.where = "transit"; b.x = p.x; b.y = p.y; b.moving = true;
+  return p;
+}
+function movePath(b, pts, ms, ease = easeInOut) {
+  b.moving = true;
+  return tween(ms, t => { const p = pathPoint(typeof pts === "function" ? pts() : pts, t); b.x = p.x; b.y = p.y; }, ease);
+}
+
+// ---------- liquide de la fiole avec ménisque ----------
+function drawFlaskLiquid(level) {
+  const L = $("flaskLiquid"), M = $("flaskMenisc");
+  if (level >= FBOT) { L.setAttribute("d", ""); M.setAttribute("d", ""); return; }
+  const h = flaskHalf(level) || fl.hn;
+  // ménisque seulement dans le col étroit ; surface plane dans la panse
+  const inNeck = level <= fl.j;
+  const m = inNeck ? Math.min(10, h * 0.85) : 0;
+  let curve = "";
+  for (let i = 0; i <= 24; i++) {
+    const u = -1 + 2 * i / 24;
+    curve += ` L${(FCX + u * h).toFixed(1)} ${(level - m * Math.pow(Math.abs(u), 2.2)).toFixed(1)}`;
+  }
+  L.setAttribute("d", `M${FCX - 200} ${FBOT + 10} L${FCX - 200} ${level - m}${curve} L${FCX + 200} ${level - m} L${FCX + 200} ${FBOT + 10} Z`);
+  M.setAttribute("d", inNeck ? "M" + curve.slice(2) : "");
+}
+function drawFlaskInfo() {
+  const g = $("flaskInfo");
+  const V = S.flask.V;
+  if (V < 0.05) { g.style.display = "none"; return; }
+  g.style.display = "";
+  const n = S.C0 * Math.min(V, S.Vp) / 1000;
+  const C = n / (V / 1000);
+  // fin d'étape 2 / début d'étape 3 : la fiole ne contient que la solution mère prélevée
+  const idx = S.step >= 3 ? "fille" : (V >= S.Vp - 0.01 && S.eq !== "live" ? "mère" : "");
+  const sub = idx ? `<tspan baseline-shift="sub" font-size="15">${idx}</tspan>` : "";
+  const x = FCX + Math.max(fl.r, 40) + 16, y0 = Math.min(fl.cy - 34, FBOT - 80);
+  [["fInfoV", `V${sub} = ${fr(V, 1)} mL`], ["fInfoC", `C${sub} = ${idx === "mère" ? fr(S.C0, 2) : sig(C)} mol/L`], ["fInfoN", `n${sub} = ${mol(n)} mol`]]
+    .forEach(([id, html], i) => { const t = $(id); t.setAttribute("x", x); t.setAttribute("y", y0 + i * 34); t.innerHTML = html; });
+}
+
+function drawEquation() {
+  const g = $("eqn");
+  if (!S.eq) { g.style.display = "none"; return; }
+  g.style.display = "";
+  const sb = t => t ? `<tspan baseline-shift="sub" font-size="14">${t}</tspan>` : "";
+  const idx = S.eq === "mere" ? "mère" : (S.eq === "fille" ? "fille" : "");
+  const V = S.eq === "mere" ? S.Vp : S.flask.V;
+  const n = S.C0 * S.Vp / 1000;
+  const C = n / (V / 1000);
+  // la police grossit quand la valeur augmente, rapetisse quand elle diminue
+  const kEnd = 1 + 0.5 * Math.log10(S.Vf / S.Vp);
+  const u = S.eq === "mere" ? 0 : (S.eq === "fille" ? 1 : (S.eqT || 0));
+  const k = 1 + (kEnd - 1) * u; // grossissement progressif et régulier
+  const B = 30; // taille de base de l'équation
+  const fV = (B * k).toFixed(1), fC = Math.max(9, B / (k * k)).toFixed(1); // C rapetisse plus vite que V ne grossit
+  // colonnes : n | = | C | × | V — la grandeur littérale est au-dessus de sa valeur
+  const sbs = (t, f) => t ? `<tspan baseline-shift="sub" font-size="${(f * 0.65).toFixed(1)}">${t}</tspan>` : "";
+  const BLUE = "#1f6feb", ORANGE = "#c2410c", INK = "#1d2433";
+  const cols = [
+    {top: `n${sbs(idx, B)}`, bot: `${mol(n)} mol`, f: B, color: INK},
+    {top: "=", bot: "=", f: B, color: INK},
+    {top: `C${sbs(idx, +fC)}`, bot: `${sig(C)} mol/L`, f: +fC, color: BLUE},
+    {top: "×", bot: "×", f: B, color: INK},
+    {top: `V${sbs(idx, +fV)}`, bot: `${fr(V / 1000, 3)} L`, f: +fV, color: ORANGE}
+  ];
+  const fMax = Math.max(B, +fC, +fV);
+  // au-dessus de la fiole : la 2e ligne se termine au-dessus du col
+  const y2 = EQ_Y2, y1 = y2 - fMax * 1.45 - 8;
+  const widths = cols.map((c, i) => {
+    const t1 = $("eq1_" + i), t2 = $("eq2_" + i);
+    [t1, t2].forEach(t => { t.setAttribute("font-size", c.f); t.setAttribute("fill", c.color); t.setAttribute("font-weight", "600"); });
+    t1.innerHTML = c.top; t2.innerHTML = c.bot;
+    t1.setAttribute("y", y1); t2.setAttribute("y", y2);
+    return Math.max(t1.getComputedTextLength(), t2.getComputedTextLength());
+  });
+  const gap = 14;
+  const total = widths.reduce((a, w) => a + w, 0) + gap * (cols.length - 1);
+  const cx = Math.min(Math.max(FCX, 450 + total / 2), 995 - total / 2);
+  let x = cx - total / 2;
+  widths.forEach((w, i) => {
+    $("eq1_" + i).setAttribute("x", x + w / 2);
+    $("eq2_" + i).setAttribute("x", x + w / 2);
+    x += w + gap;
+  });
+}
+
+// ---------- rendu ----------
+function render(now) {
+  $("pipetteG").setAttribute("transform", `translate(${S.pip.x} ${S.pip.y})`);
+  const pl = $("pipLiquid");
+  pl.setAttribute("y", S.pip.level); pl.setAttribute("height", Math.max(0, -S.pip.level));
+  const bl = beakerLevel(S.beakerV);
+  $("beakerLiquid").setAttribute("y", bl); $("beakerLiquid").setAttribute("height", 560 - bl);
+  drawFlaskLiquid(S.flask.level);
+  drawFlaskInfo();
+  drawEquation();
+  $("flaskG").setAttribute("transform", `rotate(${S.flask.rot} ${FCX} ${FBOT})`);
+  $("washBottle").setAttribute("opacity", S.wash);
+  $("stopper").setAttribute("opacity", S.stopper);
+  const st = $("stream");
+  if (S.streamW > 0.05) {
+    const ny = 192 + FTOP - 282;
+    st.setAttribute("d", `M${FCX + 33} ${ny} Q${FCX + 6} ${ny + 13} ${FCX + 2} ${FTOP} L${FCX + 2} ${S.flask.level}`);
+    st.setAttribute("stroke-width", S.streamW);
+    st.setAttribute("opacity", 1);
+  } else st.setAttribute("opacity", 0);
+  for (const b of balls) {
+    let x = b.x, y = b.y;
+    if (!b.moving) {
+      x += 0.9 * Math.sin(now * 0.0021 * b.f1 + b.p1);
+      y += 0.9 * Math.sin(now * 0.0017 * b.f2 + b.p2);
+    }
+    b.el.setAttribute("cx", x.toFixed(2));
+    b.el.setAttribute("cy", y.toFixed(2));
+  }
+  $("pipLabel3").style.display = S.showC ? "" : "none";
+  $("pipLabel4").style.display = S.showC ? "" : "none";
+  if (S.busy) updateCounts();
+  if (S.drop) { S.drop.el.setAttribute("cx", S.drop.x); S.drop.el.setAttribute("cy", S.drop.y); }
+  requestAnimationFrame(render);
+}
+
+// ---------- étapes ----------
+const TIP_DEPTH = 22; // profondeur d'immersion de la pointe sous la surface
+const tipY = () => beakerLevel(S.beakerV) + TIP_DEPTH;
+async function runStep1() {
+  // seule la pointe plonge dans la solution
+  const yDip = tipY();
+  await tween(1300, t => S.pip.y = lerp(PIP_REST, yDip, t));
+  const tip = {x: S.pip.x, y: S.pip.y};
+  const pool = balls.filter(b => b.where === "beaker")
+    .sort((a, b) => ((a.x - tip.x) ** 2 + (a.y - tip.y) ** 2) - ((b.x - tip.x) ** 2 + (b.y - tip.y) ** 2));
+  const picked = pool.slice(0, S.k);
+  const rest = pool.slice(S.k);
+  const slots = pipetteSlots(S.k);
+  // pendant l'aspiration : le niveau baisse, la pipette suit la surface,
+  // les boules restantes se répartissent dans le volume restant
+  const lvlEnd = beakerLevel(V0 - S.Vp);
+  const restTargets = assign(rest, sampleEven(rest.length, insideBeaker(lvlEnd), beakerBox).pts);
+  const pickTargets = picked.map(() => ({x: tip.x + (Math.random() - .5) * 24, y: lvlEnd + TIP_DEPTH + 4 + Math.random() * 10}));
+  const moving = rest.concat(picked), targets = restTargets.concat(pickTargets);
+  const from = moving.map(b => ({x: b.x, y: b.y}));
+  const ASP = 2800;
+  const anims = [tween(ASP, t => {
+    S.pip.level = lerp(0, PIP_GAUGE - 9, t);
+    S.beakerV = lerp(V0, V0 - S.Vp, t);
+    S.pipV = lerp(0, S.Vp, t);
+    S.pip.y = tipY();
+    moving.forEach((b, i) => {
+      if (b.where !== "beaker") return;
+      b.x = lerp(from[i].x, targets[i].x, t); b.y = lerp(from[i].y, targets[i].y, t);
+    });
+  })];
+  picked.forEach((b, i) => {
+    const delay = S.k > 1 ? i * 1100 / (S.k - 1) : 0;
+    anims.push(wait(200 + delay).then(() => {
+      const start = toTransit(b);
+      const pts = () => [start, {x: S.pip.x, y: S.pip.y - 3}, {x: S.pip.x, y: S.pip.y - 132},
+        {x: S.pip.x + slots[i].x, y: S.pip.y + slots[i].y}];
+      return movePath(b, pts, 1400)
+        .then(() => { placeIn(b, "pipette", slots[i].x, slots[i].y); updateCounts(); });
+    }));
+  });
+  await Promise.all(anims);
+  S.pipV = S.Vp; S.showC = true; updateCounts();
+  const yLow = S.pip.y;
+  await tween(1100, t => S.pip.y = lerp(yLow, PIP_REST, t));
+  // ajustement au trait de jauge : une goutte retombe dans le bécher
+  const el = document.createElementNS(NS, "circle");
+  el.setAttribute("r", 3); el.setAttribute("fill", "#5aa6e0");
+  $("transit").appendChild(el);
+  S.drop = {el, x: S.pip.x, y: S.pip.y + 3};
+  await tween(500, t => S.pip.level = lerp(PIP_GAUGE - 9, PIP_GAUGE, t));
+  const y0 = S.drop.y, y1 = beakerLevel(S.beakerV);
+  await tween(450, t => S.drop.y = lerp(y0, y1, t), t => t * t);
+  el.remove(); S.drop = null;
+}
+// répartition dans la fiole proportionnelle au volume : col et panse traités séparément
+function flaskEven(k, lvl) {
+  const inside = insideFlask(lvl);
+  const yj = Math.ceil(fl.j);
+  const total = fl.cum[Math.round(lvl)] || 1;
+  const neckA = lvl < yj ? total - fl.cum[yj] : 0;
+  // sur le dessin le col est exagéré : dans une vraie fiole il ne contient qu'une petite part du volume
+  const w = 0.25 * neckA;
+  const nNeck = fl.hn - RB - 1.5 < 1 ? 0 : Math.round(k * w / (total - neckA + w));
+  const neck = sampleEven(nNeck, (x, y) => y < yj && inside(x, y), flaskBox());
+  const body = sampleEven(k - nNeck, (x, y) => y >= yj && inside(x, y), flaskBox(), neck.pts);
+  return {pts: neck.pts.concat(body.pts), minD: Math.min(neck.minD, body.minD)};
+}
+function flaskSmallTargets(k) {
+  let lvl = Math.min(flaskLevelForVolume(S.Vp), FBOT - 16);
+  while (lvl > FGAUGE) {
+    const {pts, minD} = flaskEven(k, lvl);
+    if (minD >= 2 * RB + 1) return {lvl, pts};
+    lvl -= 3;
+  }
+  return {lvl, pts: samplePointsSafe(k, insideFlask(lvl), flaskBox())};
+}
+async function runStep2() {
+  await tween(400, t => S.pip.y = lerp(PIP_REST, PIP_LIFT, t));
+  await tween(1700, t => S.pip.x = lerp(PIP_X0, FCX, t));
+  await tween(1000, t => S.pip.y = lerp(PIP_LIFT, PIP_IN_FLASK, t));
+  const {lvl, pts} = flaskSmallTargets(S.k);
+  const pb = balls.filter(b => b.where === "pipette").sort((a, b) => b.y - a.y);
+  const DRAIN = 3200;
+  const anims = [tween(DRAIN, t => { S.pip.level = lerp(PIP_GAUGE, 0, t); S.flask.level = lerp(FBOT + 6, lvl, t); S.flask.V = lerp(0, S.Vp, t); S.pipV = S.Vp - S.flask.V; }, linear)];
+  pb.forEach((b, i) => {
+    // chaque boule part un peu avant que la surface du liquide qui descend ne l'atteigne :
+    // elle s'écoule avec la solution et n'est jamais « à sec » dans la pipette
+    const tReach = (b.y - RB - PIP_GAUGE) / (-PIP_GAUGE);
+    const delay = Math.max(0, tReach * DRAIN - 350);
+    anims.push(wait(delay).then(() => {
+      const start = toTransit(b);
+      const px = S.pip.x, py = S.pip.y;
+      return movePath(b, [start, {x: px, y: py - 132}, {x: px, y: py - 2}, {x: FCX, y: Math.max(py + 10, fl.j)}, pts[i]], 1300, linear)
+        .then(() => { placeIn(b, "flask", pts[i].x, pts[i].y); updateCounts(); });
+    }));
+  });
+  await Promise.all(anims);
+  S.pipV = 0; S.showC = false; updateCounts();
+  await tween(700, t => S.pip.y = lerp(PIP_IN_FLASK, PIP_LIFT, t));
+  await tween(1500, t => S.pip.x = lerp(FCX, PIP_X0, t));
+  await tween(400, t => S.pip.y = lerp(PIP_LIFT, PIP_REST, t));
+}
+async function runStep3() {
+  S.eq = "mere"; S.eqT = 0;
+  await tween(500, t => S.wash = t);
+  await wait(1200);
+  S.eq = "live"; S.eqT = 0;
+  const l0 = S.flask.level, v0 = S.flask.V;
+  // progression linéaire dans le temps pour la taille des polices de l'équation
+  const grow = tween(5500, t => S.eqT = t, linear);
+  await tween(5500, t => {
+    S.flask.level = lerp(l0, FGAUGE, t);
+    S.flask.V = lerp(v0, S.Vf, t);
+    S.streamW = t < .8 ? 3.2 : lerp(3.2, 0.9, (t - .8) / .2);
+  }, easeOut);
+  await grow;
+  S.streamW = 0;
+  S.eq = "fille"; S.eqT = 1;
+  await tween(400, t => S.wash = 1 - t);
+  await tween(350, t => S.stopper = t);
+  // agitation : homogénéisation
+  const fb = balls.filter(b => b.where === "flask");
+  const targets = assign(fb, flaskEven(fb.length, FGAUGE).pts);
+  const from = fb.map(b => ({x: b.x, y: b.y}));
+  await tween(2000, t => {
+    S.flask.rot = 11 * Math.sin(t * Math.PI * 6) * (1 - t);
+    const u = easeInOut(t);
+    fb.forEach((b, i) => { b.x = lerp(from[i].x, targets[i].x, u); b.y = lerp(from[i].y, targets[i].y, u); });
+  }, linear);
+  S.flask.rot = 0;
+}
+
+// ---------- interface ----------
+const TITLES = [
+  "Étape initiale – La solution mère",
+  "Étape 1 – Prélèvement à la pipette jaugée",
+  "Étape 2 – Transfert dans la fiole jaugée",
+  "Étape 3 – Dilution",
+  "Étape 4 – Bilan : conservation de la quantité de soluté"
+];
+const BTN = ["Lancer l'étape 1 : prélever", "Lancer l'étape 2 : transférer", "Lancer l'étape 3 : diluer", "Afficher le bilan (étape 4)", "Simulation terminée"];
+
+function stepText() {
+  const {C0, Vp, Vf, N, k} = S;
+  const C1 = k * BALL_MOL / (Vf / 1000);
+  switch (S.step) {
+    case 0: return `Le bécher contient V₀ = ${V0} mL de solution mère de concentration C₀ = ${fr(C0, 2)} mol/L, soit n₀ = ${mol(N * BALL_MOL)} mol de soluté : <b>${N} boules</b>. Réglez C₀, Vp et Vf puis lancez le prélèvement.`;
+    case 1: return `La pipette jaugée prélève un volume de solution mère V<sub>mère</sub> = ${fr(Vp, 1)} mL. La concentration de la solution mère dans la pipette jaugée est toujours C<sub>mère</sub> : on a pris une partie de la solution sans changer sa composition. Elle contient une quantité de matière de soluté :<br><span class="nowrap">n<sub>mère</sub> = C<sub>mère</sub> × V<sub>mère</sub> = ${mol(C0 * Vp / 1000)} mol (représentée par <b>${k} boule${k > 1 ? "s" : ""}</b>)</span>.`;
+    case 2: return `Tout le contenu de la pipette jaugée est versé dans la fiole jaugée de volume <span class="nowrap">V<sub>fille</sub> = ${fr(Vf, 1)} mL</span>.<br>La quantité de matière de soluté transférée dans la fiole jaugée n'a pas changé : <span class="nowrap">n<sub>mère</sub> = ${mol(C0 * Vp / 1000)} mol</span>.`;
+    case 3: return `On complète avec de l'eau distillée jusqu'au trait de jauge, puis on bouche et on agite pour homogénéiser.<br>Le volume passe de ${fr(Vp, 1)} mL à ${fr(Vf, 1)} mL, mais il y a toujours la même quantité de matière de soluté <span class="nowrap">n<sub>fille</sub> = n<sub>mère</sub> = ${mol(C0 * Vp / 1000)} mol</span> : le soluté est réparti dans un plus grand volume <span class="nowrap">V<sub>fille</sub> = ${fr(Vf, 1)} mL</span> et sa concentration en quantité de matière C<sub>fille</sub> a diminué, la solution est diluée.`;
+    case 4: return `Lors d'une dilution, le solvant ajouté n'apporte aucun soluté :<div class="eqbox"><span class="l">n<sub>mère</sub></span><span class="e">=</span><span class="r">n<sub>fille</sub></span><span class="l">C<sub>mère</sub> × V<sub>mère</sub></span><span class="e">=</span><span class="r">C<sub>fille</sub> × V<sub>fille</sub></span></div>`;
+  }
+}
+function updateCounts() {
+  $("beakerCap").innerHTML = `C<tspan baseline-shift="sub" font-size="16">mère</tspan> = ${fr(S.C0, 2)} mol/L`;
+  $("flaskTitle").innerHTML = `Fiole jaugée V<tspan baseline-shift="sub" font-size="14">fille</tspan> = ${fr(S.Vf, 1)} mL`;
+  $("flaskSol").style.display = S.step >= 3 ? "" : "none";
+}
+function updateUI() {
+  [...$("steps").children].forEach((li, i) => {
+    const cur = S.busy ? S.step + 1 : S.step;
+    li.className = i + 1 < cur ? "done" : (i + 1 === cur ? "active" : "");
+  });
+  $("stepTitle").textContent = S.busy ? "Animation en cours…" : TITLES[S.step];
+  $("stepText").innerHTML = S.busy ? "Observez le déplacement des boules de soluté." : stepText();
+  const idle = S.step === 0 && !S.busy;
+  document.querySelector(".steptext").style.display = idle ? "none" : "";
+  document.querySelector(".stepbox").classList.toggle("idle", idle);
+  const nb = $("nextBtn");
+  nb.textContent = BTN[S.step];
+  nb.disabled = S.busy || S.step >= 4 || S.k === 0 || S.Vf <= S.Vp;
+  const ri = replayIndex(), rb = $("replayBtn");
+  rb.style.display = ri >= 0 ? "" : "none";
+  rb.textContent = `↺ Rejouer l'étape ${ri + 1}`;
+  rb.disabled = ri < 0 || !snaps[ri];
+  const locked = S.step > 0 || S.busy;
+  ["c0", "vp", "vf"].forEach(id => $(id).disabled = locked);
+  $("lockNote").textContent = locked ? "Les réglages sont verrouillés pendant le protocole : cliquez sur « Recommencer » pour les modifier." : "";
+  $("c0Out").textContent = fr(S.C0, 2) + " mol/L";
+  $("pipLabel2").innerHTML = `V<tspan baseline-shift="sub" font-size="15">mère</tspan> = ${fr(S.Vp, 1)} mL`;
+  $("pipLabel3").innerHTML = `C<tspan baseline-shift="sub" font-size="15">mère</tspan> = ${fr(S.C0, 2)} mol/L`;
+  $("pipLabel4").innerHTML = `n<tspan baseline-shift="sub" font-size="15">mère</tspan> = ${mol(S.C0 * S.Vp / 1000)} mol`;
+  const w = $("warn");
+  if (S.Vf <= S.Vp) w.innerHTML = `La fiole jaugée (${fr(S.Vf, 1)} mL) doit avoir un volume supérieur à celui de la pipette (${fr(S.Vp, 1)} mL) pour réaliser une dilution. Choisissez une fiole plus grande ou une pipette plus petite.`;
+  else if (S.k === 0) w.innerHTML = "Avec ces réglages, la pipette prélèverait moins d'une boule de soluté. Augmentez C<sub>mère</sub> ou V<sub>mère</sub>.";
+  else if (Math.abs(S.kTh - S.k) > 1e-9) w.innerHTML = `C<sub>mère</sub> × V<sub>mère</sub> correspond à ${sig(S.kTh)} boule(s) : une boule ne pouvant pas être coupée, la simulation en prélève ${S.k}. Pour un compte exact, choisissez C<sub>mère</sub> et V<sub>mère</sub> tels que C<sub>mère</sub> × V<sub>mère</sub> soit un multiple de 0,001 mol.`;
+  else w.innerHTML = "";
+  const {C0, Vp, Vf, N, k} = S;
+  updateCounts();
+}
+
+// ---------- rejouer une étape ----------
+// on mémorise l'état de la scène avant chaque étape animée
+let snaps = [];
+function snapshot() {
+  const keys = ["step", "pipV", "showC", "eq", "eqT", "pip", "beakerV", "flask", "wash", "streamW", "stopper"];
+  const o = {};
+  keys.forEach(k => o[k] = S[k]);
+  return {S: JSON.parse(JSON.stringify(o)), balls: balls.map(b => ({where: b.where, x: b.x, y: b.y}))};
+}
+function restore(sn) {
+  Object.assign(S, JSON.parse(JSON.stringify(sn.S)));
+  balls.forEach((b, i) => placeIn(b, sn.balls[i].where, sn.balls[i].x, sn.balls[i].y));
+  if (S.drop) { S.drop.el.remove(); S.drop = null; }
+}
+const RUNS = [() => runStep1(), () => runStep2(), () => runStep3()];
+async function play(i) {
+  S.busy = true; updateUI();
+  try {
+    await RUNS[i]();
+    S.step = i + 1;
+  } catch (e) {
+    if (e !== ABORT) console.error(e);
+    return;
+  }
+  S.busy = false; updateUI();
+}
+function replayIndex() {
+  if (S.busy) return S.step;            // étape en cours d'animation
+  if (S.step >= 1) return Math.min(S.step, 3) - 1; // dernière étape animée
+  return -1;
+}
+function replay() {
+  const i = replayIndex();
+  if (i < 0 || !snaps[i]) return;
+  S.gen++;               // interrompt l'animation en cours
+  restore(snaps[i]);
+  play(i);
+}
+async function next() {
+  if (S.busy || S.step >= 4 || S.k === 0 || S.Vf <= S.Vp) return;
+  if (S.step === 3) { S.step = 4; updateUI(); return; }
+  snaps[S.step] = snapshot();
+  play(S.step);
+}
+
+function reset() {
+  S.gen++;
+  snaps = [];
+  S.busy = false; S.step = 0; S.pipV = 0; S.showC = false; S.eq = null;
+  S.C0 = Math.round(+$("c0").value * +$("vp").value) / +$("vp").value; S.Vp = +$("vp").value; S.Vf = +$("vf").value;
+  S.N = Math.round(S.C0 * V0 / 1000 / BALL_MOL);
+  S.kTh = S.N * S.Vp / V0;
+  S.k = Math.round(S.kTh);
+  buildPipette();
+  const spP = Math.sqrt((2 * PG.hw - 4) * (PG.H + 2) / Math.max(S.k, 1)) * 0.93;
+  const rF = flaskRadius(S.Vf);
+  const spF = Math.sqrt(Math.PI * rF * rF * 0.75 / Math.max(S.k, 1)) * 0.93;
+  const areaB = (2 * BR - 10) * (BH * (V0 - S.Vp) / BEAKER_CAP - 8);
+  const spB = Math.sqrt(areaB / Math.max(S.N - S.k, 1)) * 0.93;
+  const spB0 = Math.sqrt((2 * BR - 10) * (BH * V0 / BEAKER_CAP - 8) / Math.max(S.N, 1)) * 0.93;
+  RB = Math.max(1.6, Math.min(4.5, Math.min(spP, spF, spB, spB0) / 2 - 0.4));
+  S.pip = {x: PIP_X0, y: PIP_REST, level: 0};
+  S.beakerV = V0; S.flask = {level: FBOT + 6, rot: 0, V: 0};
+  S.wash = 0; S.streamW = 0; S.stopper = 0;
+  if (S.drop) { S.drop.el.remove(); S.drop = null; }
+  Object.values(layers).forEach(id => $(id).innerHTML = "");
+  buildFlask();
+  const pipLen = -(PG.ytop - 30);
+  $("scene").setAttribute("viewBox", "0 -128 1000 768");
+  const pts = sampleEven(S.N, insideBeaker(beakerLevel(V0)), beakerBox).pts;
+  balls = pts.map(p => makeBall(p.x, p.y));
+  updateUI();
+}
+
+
+buildBeakerGrad();
+$("c0").addEventListener("input", reset);
+// Seules les concentrations donnant un nombre entier de boules prélevées sont accessibles :
+// C_mère × V_mère doit être un multiple de 0,001 mol, donc C_mère un multiple de 1 / V_mère (en mL).
+function syncC0() {
+  const vp = +$("vp").value, sl = $("c0");
+  const step = 1 / vp;
+  sl.min = step; sl.step = step;
+  const snapped = Math.min(2, Math.max(step, Math.round(+sl.value * vp) / vp));
+  sl.value = snapped;
+}
+$("vp").addEventListener("change", () => { syncC0(); reset(); });
+$("vf").addEventListener("change", reset);
+$("nextBtn").addEventListener("click", next);
+$("resetBtn").addEventListener("click", reset);
+$("replayBtn").addEventListener("click", replay);
+syncC0();
+reset();
+requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
